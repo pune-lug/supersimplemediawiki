@@ -1,83 +1,78 @@
 #!/usr/bin/env python3
 """
-Copyright (C) 2012 Legoktm
-
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the "Software"),
-to deal in the Software without restriction, including without limitation
-the rights to use, copy, modify, merge, publish, distribute, sublicense,
-and/or sell copies of the Software, and to permit persons to whom the
-Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-IN THE SOFTWARE.
+License: The MIT License (http://opensource.org/licenses/MIT)
 """
 
 import requests
 
 class SSMWError(Exception):
-    """Any error"""
+    pass
 
 class Wiki:
-    def __init__(self, api, headers=None):
-        self.api = api
+    def __init__(self, api_url, headers=None):
+        self.api_url = api_url
         self.cookies = None
         self.username = None
+        self.format = 'json'
         if headers:
             self.headers = headers
         else:
-            self.headers = {'User-agent':'supersimplemediawiki by en:User:Legoktm'}
+            self.headers = {'User-agent':'supersimplemediawiki'}
 
-    def login(self, username, passw):
+    def login(self, username, passwd):
         """
         Logs the user in.
         @param username Account's username
         @type username str
-        @param passw Account's password
-        @type passw str
+        @param passwd Account's password
+        @type passwd str
         """
         self.username = username
         data = {'action':'login',
                 'lgname':username,
-                'lgpassword':passw,
-                'format':'json'
+                'lgpassword':passwd,
+                'format':self.format
         }
-        r1 = requests.post(self.api, params=data, headers=self.headers)
+        r1 = requests.post(self.api_url, params=data, headers=self.headers)
         if not r1.ok:
             raise SSMWError(r1.text)
         if not r1.json():
             raise SSMWError(r1.text)
         token = r1.json()['login']['token']
         data['lgtoken'] = token
-        r2 = requests.post(self.api, params=data, headers=self.headers, cookies=r1.cookies)
-        if not r2.ok:
-            raise SSMWError(r2.text)
-        self.cookies = r2.cookies
+        self.cookies = r1.cookies
+        r1 = requests.post(self.api_url, params=data, headers=self.headers, cookies=self.cookies)
+        if not r1.ok:
+            raise SSMWError(r1.text)
+        self.cookies = r1.cookies
 
     def request(self, params, post=False):
         """
         Makes an API request with the given params.
         Returns the page in a dict format
         """
-        params['format'] = 'json' #force json
-        r = self.fetch(self.api, params, post=post)
+        r = self.fetch(params, post=post)
         if not r.json():
             raise SSMWError(r.text)
         return r.json()
 
-    def fetch(self, url, params=None, post=False):
+    def fetch(self, url=None, params=None, post=False):
+        if not url:
+            url = self.api_url
+        if 'format' not in params:
+            params['format'] = self.format
         if post:
             r = requests.post(url, params=params, cookies=self.cookies, headers=self.headers)
         else:
             r = requests.get(url, params=params, cookies=self.cookies, headers=self.headers)
+        if not r.ok:
+            raise SSMWError(r.text)
+        return r
+
+    def logout(self):
+        params = {}
+        params['action'] = 'logout'
+        r = self.fetch(params=params)
         if not r.ok:
             raise SSMWError(r.text)
         return r
