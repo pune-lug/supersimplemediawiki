@@ -72,7 +72,5 @@ class Wiki:
     def logout(self):
         params = {}
         params['action'] = 'logout'
-        r = self.fetch(params=params)
-        if not r.ok:
-            raise SSMWError(r.text)
+        r = self.request(params=params)
         return r
