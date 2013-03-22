@@ -51,10 +51,11 @@ class Wiki:
         Makes an API request with the given params.
         Returns the page in a dict format
         """
-        r = self.fetch(params, post=post)
-        if not r.json():
+        r = self.fetch(params=params, post=post)
+        try:
+            return r.json()
+        except:
             raise SSMWError(r.text)
-        return r.json()
 
     def fetch(self, url=None, params=None, post=False):
         if not url:
@@ -68,6 +69,17 @@ class Wiki:
         if not r.ok:
             raise SSMWError(r.text)
         return r
+
+    def get_edittoken(self):
+        params = {}
+        params['action'] = 'query'
+        params['prop'] = 'info'
+        params['intoken'] = 'edit'
+        params['titles'] = 'a'
+        r = self.request(params)
+        for k in r['query']['pages']:
+            if r['query']['pages'][k].get('edittoken', None):
+                self.edittoken = r['query']['pages'][k]['edittoken']
 
     def logout(self):
         params = {}
