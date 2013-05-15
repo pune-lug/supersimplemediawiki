@@ -4,6 +4,7 @@ License: The MIT License (http://opensource.org/licenses/MIT)
 """
 
 import requests
+import random
 
 class SSMWError(Exception):
     pass
@@ -184,5 +185,6 @@ class Wiki:
             t['md5'] = md5
         t['token'] = self.edittoken
         print(t)
-        d = self.request(t, headers={'Content-Type':'multipart/form-data'}, post=True)
+        boundary = str(random.random())[2:]
+        d = self.request(t, headers={'Content-Type':'multipart/form-data; boundary=' + boundary}, post=True)
         return(d)
