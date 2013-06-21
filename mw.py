@@ -187,7 +187,8 @@ class Wiki:
         if md5:
             params['md5'] = md5
         params['token'] = self.edittoken
-        d = self.request(params, headers={'Content-Type':'multipart/form-data'}, post=True)
+        boundary = str(random.random())[2:]
+        d = self.request(params, headers={'Content-Type':'multipart/form-data; boundary=' + boundary}, post=True)
         return(d)
 
     def get_recentchanges(self, **kargs):
