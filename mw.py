@@ -4,6 +4,7 @@ License: The MIT License (http://opensource.org/licenses/MIT)
 """
 
 import requests
+import random
 
 class SSMWError(Exception):
     pass
