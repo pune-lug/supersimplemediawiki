@@ -57,15 +57,15 @@ class Wiki:
         }
         r1 = self.s.post(self.api_url, params=data, headers=self.headers)
         if not r1.ok:
-            raise SSMWError(r1.text)
+            raise SSMWError(r1.url+'\n'+r1.text)
         if not r1.json():
-            raise SSMWError(r1.text)
+            raise SSMWError(r1.url+'\n'+r1.text)
         token = r1.json()['login']['token']
         data['lgtoken'] = token
         self.cookies = r1.cookies
         r1 = self.s.post(self.api_url, params=data, headers=self.headers, cookies=self.cookies)
         if not r1.ok:
-            raise SSMWError(r1.text)
+            raise SSMWError(r1.url+'\n'+r1.text)
         self.cookies = r1.cookies
 
     def request(self, params, post=False, headers=None):
@@ -77,7 +77,7 @@ class Wiki:
         try:
             return r.json()
         except:
-            raise SSMWError(r.text)
+            raise SSMWError(r.url+'\n'+r.text)
 
     def fetch(self, url=None, params=None, post=False, headers=None):
         if not url:
@@ -92,15 +92,18 @@ class Wiki:
         else:
             r = self.s.get(url, params=params, cookies=self.cookies, headers=hdrs)
         if not r.ok:
-            raise SSMWError(r.text)
+            raise SSMWError(url+'\n'+r.text)
         return r
 
-    def get_edittoken(self):
+    def get_edittoken(self, page=None):
         params = {}
         params['action'] = 'query'
         params['prop'] = 'info'
         params['intoken'] = 'edit'
-        params['titles'] = 'a'
+        if page:
+            params['titles'] = page
+        else:
+            params['titles'] = 'a'
         r = self.request(params)
         for x in r['query']['pages']:
             if r['query']['pages'][x].get('edittoken', None):
@@ -156,33 +159,89 @@ class Wiki:
         if not force_edit and text == self.text:
             print('Ignoring edit...')
             return
-        t = {}
-        t['format'] = self.format
-        t['action'] = 'edit'
-        t['title'] = self.title
-        t['text'] = text
-        t['assert'] = assert_
+        params = {}
+        params['format'] = self.format
+        params['action'] = 'edit'
+        params['title'] = self.title
+        params['text'] = text
+        params['assert'] = assert_
         if appendtext:
-            t['appendtext'] = appendtext
+            params['appendtext'] = appendtext
         if prependtext:
-            t['prependtext'] = prependtext
+            params['prependtext'] = prependtext
         if summary:
-            t['summary'] = summary
+            params['summary'] = summary
         if section:
-            t['section'] = section
+            params['section'] = section
         if minor:
-            t['minor'] = ''
+            params['minor'] = ''
         if notminor:
-            t['notminor'] = ''
+            params['notminor'] = ''
         if bot:
-            t['bot'] = ''
+            params['bot'] = ''
         if createonly:
-            t['createonly'] = ''
+            params['createonly'] = ''
         if nocreate:
-            t['nocreate'] = ''
+            params['nocreate'] = ''
         if md5:
-            t['md5'] = md5
-        t['token'] = self.edittoken
-        print(t)
-        d = self.request(t, headers={'Content-Type':'multipart/form-data'}, post=True)
+            params['md5'] = md5
+        params['token'] = self.edittoken
+        d = self.request(params, headers={'Content-Type':'multipart/form-data'}, post=True)
         return(d)
+
+    def get_recentchanges(self, **kargs):
+        params = {}
+        params['format'] = self.format
+        params['action'] = 'query'
+        params['list'] = 'recentchanges'
+        params['rcprop'] = '|'.join(kargs.get('rcprop', ['title', 'ids', 'type', 'user']))
+        params['rclimit'] = vars(self).get('rclimit', 5000)
+        rctype = kargs.get('rctype', None)
+
+        rcstart = kargs.get('rcstart', None)
+        if rctype:
+            params['rctype'] = rctype
+        rcstart = kargs.get('rcstart', None)
+        rcstop = kargs.get('rcstop', None)
+        rccontinue = kargs.get('rccontinue', None)
+        if not rccontinue:
+            self.rcstart= None
+            self.rcfinished = False
+        if rccontinue and self.rcstart:
+            params['rcstart'] = self.rcstart
+        rccontinue = kargs.get('rccontinue', None)
+        if rccontinue:
+            params['rccontinue'] = rccontinue
+        if rcstart:
+            params['rcstart'] = rcstart
+        if rcstop:
+            params['rcstop'] = rcstop
+        d = self.request(params)
+        try:
+            try:
+                self.rcstart = d['query-continue']['recentchanges']['rcstart']
+            except:
+                self.rcfinished = True
+            retval = []
+            for x in d['query']['recentchanges']:
+                tmp_retval = {}
+                for y in params['rcprop'].split('|'):
+                    if y == 'ids':
+                        for z in ['rcid', 'pageid', 'revid', 'old_revid']:
+                            tmp_retval[z] = x[z]
+                    else:
+                        tmp_retval[y] = x[y]
+                retval.append(tmp_retval)
+            return retval
+        except Exception as e:
+            raise(Exception('Data not found', e))
+
+    def get_random_pages(self, rnnamespace=None, rnlimit=20):
+        params = {}
+        params['action'] = 'query'
+        params['list'] = 'random'
+        if rnnamespace:
+            params['rnnamespace'] = '|'.join([str(x) for x in rnnamespace])
+        params['rnlimit'] = rnlimit
+        d = self.request(params)
+        return [x['title'] for x in d['query']['random']]
